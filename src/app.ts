@@ -76,7 +76,7 @@ function encodeCommands(
   passEncoder.setVertexBuffer(0, positionBuffer)
   passEncoder.setVertexBuffer(1, colorBuffer)
   passEncoder.setIndexBuffer(indexBuffer, 'uint16')
-  passEncoder.drawIndexed(3, 1, 0, 0, 0)
+  passEncoder.drawIndexed(6, 1, 0, 0, 0)
   passEncoder.endPass()
 
   queue.submit([commandEncoder.finish()])
@@ -121,12 +121,20 @@ export async function init() {
 
   // create triangle buffer data
   const positions = new Float32Array([
-    1.0, -1.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0, 0.0,
+    -0.5, -0.5, 0.0, 
+    0.5, 0.5, 0.0,
+    0.5, -0.5, 0.0,
+    -0.5, 0.5, 0.0,
   ])
 
-  const colors = new Float32Array([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
+  const colors = new Float32Array([
+    0.5, 0.0, 0.0, 
+    0.0, 0.5, 0.0, 
+    0.0, 0.0, 0.5,
+    0.5, 0.5, 0.0,
+  ])
 
-  const indices = new Uint16Array([0, 1, 2])
+  const indices = new Uint16Array([0, 1, 2, 0, 3, 1, 0])
 
   const positionBuffer: GPUBuffer = createBuffer(
     device,
@@ -155,8 +163,10 @@ export async function init() {
 
   // shader data for matrix, primary color and accent color
   const uniformData = new Float32Array([
-    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-    1.0,
+    1.0, 0.0, 0.0, 0.0, 
+    0.0, 1.0, 0.0, 0.0, 
+    0.0, 0.0, 1.0, 0.0, 
+    0.0, 0.0, 0.0, 1.0,
 
     0.1, 0.9, 0.3, 1.0,
 

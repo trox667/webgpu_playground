@@ -1,17 +1,16 @@
 # WebGPU Playground
 
-Learning WebGPU by doing
-Mainly by following along link #1 [links](#Links)
+Learning WebGPU by doing. Mainly by following along link #1 [links](#Links)
 
 # Start
 
-`npm i` to install dependencies
+`npm i` to install dependencies  
 `npm run dev` will start parcel watching the source files and running a server on [http://localhost:1234](http://localhost:1234)
 
 # Requirements
 
-You probably need a bleeding edge version of chrome, edge or firefox
-[webgpu status](https://github.com/gpuweb/gpuweb/wiki/Implementation-Status)
+You probably need a bleeding edge version of chrome, edge or firefox.  
+See [webgpu status](https://github.com/gpuweb/gpuweb/wiki/Implementation-Status) for the current status of implementation and support.
 
 To compile the shaders to SPIR-V see [glslang](https://github.com/KhronosGroup/glslang)
 `glslangValidator -V src/triangle.vert -o dist/triangle.vert.spv`
