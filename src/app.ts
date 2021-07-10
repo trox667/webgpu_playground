@@ -1,3 +1,5 @@
+import { mat4, glMatrix, vec3 } from 'gl-matrix'
+
 function checkForWebGPUSupport(): boolean {
   const gpu: GPU = window.navigator.gpu
   if (!!gpu) console.error('WebGPU is not supported on this browser.')
@@ -41,7 +43,7 @@ function encodeCommands(
   pipeline: GPURenderPipeline,
   width: number,
   height: number,
-  bindGroup: GPUBindGroup,
+  bindGroups: GPUBindGroup[],
   positionBuffer: GPUBuffer,
   colorBuffer: GPUBuffer,
   indexBuffer: GPUBuffer
@@ -70,16 +72,63 @@ function encodeCommands(
   const passEncoder: GPURenderPassEncoder =
     commandEncoder.beginRenderPass(renderPassDesc)
   passEncoder.setPipeline(pipeline)
-  passEncoder.setBindGroup(0, bindGroup)
+  passEncoder.setBindGroup(0, bindGroups[0])
   passEncoder.setViewport(0, 0, width, height, 0, 1)
-  passEncoder.setScissorRect(0, 0, width, height)
+  passEncoder.setScissorRect(0, 0, width/2, height)
   passEncoder.setVertexBuffer(0, positionBuffer)
   passEncoder.setVertexBuffer(1, colorBuffer)
   passEncoder.setIndexBuffer(indexBuffer, 'uint16')
-  passEncoder.drawIndexed(6, 1, 0, 0, 0)
+  passEncoder.drawIndexed(36, 1, 0, 0, 0)
+  passEncoder.setBindGroup(0, bindGroups[1])
+  passEncoder.setViewport(0, 0, width, height, 0, 1)
+  passEncoder.setScissorRect(width/2, 0, width/2, height)
+  passEncoder.setVertexBuffer(0, positionBuffer)
+  passEncoder.setVertexBuffer(1, colorBuffer)
+  passEncoder.setIndexBuffer(indexBuffer, 'uint16')
+  passEncoder.drawIndexed(36, 1, 0, 0, 0)
   passEncoder.endPass()
 
   queue.submit([commandEncoder.finish()])
+}
+
+const OPENGL_TO_WGPU_MATRIX: mat4 = mat4.fromValues(
+  1.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  1.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.5,
+  0.0,
+  0.0,
+  0.0,
+  0.5,
+  1.0
+)
+
+function buildViewProjectionMatrix(
+  eye: vec3 = vec3.fromValues(0.0, 1.0, 3.0),
+  target: vec3 = vec3.fromValues(0.0, 0.0, 0.0),
+  up: vec3 = vec3.fromValues(0.0, 1.0, 0.0),
+  aspect: number = 1.5,
+  fovy: number = 45.0,
+  znear: number = 0.1,
+  zfar: number = 1000
+): mat4 {
+  const view = mat4.create()
+  const proj = mat4.create()
+
+  mat4.lookAt(view, eye, target, up)
+  mat4.perspective(proj, fovy, aspect, znear, zfar)
+
+  const viewProjMat = mat4.create()
+  mat4.mul(viewProjMat, OPENGL_TO_WGPU_MATRIX, viewProjMat)
+  mat4.mul(viewProjMat, proj, view)
+  return viewProjMat
 }
 
 export async function init() {
@@ -121,20 +170,77 @@ export async function init() {
 
   // create triangle buffer data
   const positions = new Float32Array([
-    -0.5, -0.5, 0.0, 
-    0.5, 0.5, 0.0,
-    0.5, -0.5, 0.0,
-    -0.5, 0.5, 0.0,
+    // front
+    -0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.5, 0.5, 0.0, -0.5, 0.5, 0.0,
+
+    // rear
+    -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5,
+
+    // top
+    -0.5, 0.5, 0.5, -0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.5,
+
+    // bottom
+    -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.0, -0.5, -0.5, 0.0,
+
+    // right
+    0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.0, 0.5, -0.5, 0.0,
+
+    // left
+    -0.5, -0.5, 0.5, -0.5, -0.5, 0.0, -0.5, 0.5, 0.0, -0.5, 0.5, 0.5,
   ])
 
   const colors = new Float32Array([
-    0.5, 0.0, 0.0, 
-    0.0, 0.5, 0.0, 
-    0.0, 0.0, 0.5,
-    0.5, 0.5, 0.0,
+    0.5, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0, 0.0,
+
+    0.0, 0.5, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0,
+
+    0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0, 0.0, 0.5,
+
+    0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.0,
+
+    0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.5,
+
+    0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
   ])
 
-  const indices = new Uint16Array([0, 1, 2, 0, 3, 1, 0])
+  const indices = new Uint16Array([
+    0,
+    1,
+    2,
+    0,
+    2,
+    3, // front
+    4,
+    5,
+    6,
+    4,
+    6,
+    7, // rear
+    8,
+    9,
+    10,
+    8,
+    10,
+    11, // top
+    12,
+    13,
+    14,
+    12,
+    14,
+    15, // bottom
+    16,
+    17,
+    18,
+    16,
+    18,
+    19, // right
+    20,
+    21,
+    22,
+    20,
+    22,
+    23, // left
+  ])
 
   const positionBuffer: GPUBuffer = createBuffer(
     device,
@@ -163,19 +269,36 @@ export async function init() {
 
   // shader data for matrix, primary color and accent color
   const uniformData = new Float32Array([
-    1.0, 0.0, 0.0, 0.0, 
-    0.0, 1.0, 0.0, 0.0, 
-    0.0, 0.0, 1.0, 0.0, 
+    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+    1.0,
+
+    1.0, 0.0, 0.0, 1.0,
+
     0.0, 0.0, 0.0, 1.0,
-
-    0.1, 0.9, 0.3, 1.0,
-
-    0.8, 0.2, 0.8, 1.0,
   ])
+  const viewProjMat = buildViewProjectionMatrix()
+  uniformData.set(viewProjMat)
 
   let uniformBuffer: GPUBuffer = createBuffer(
     device,
     uniformData,
+    GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+  )
+
+    // shader data for matrix, primary color and accent color
+  const uniformData2 = new Float32Array([
+    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+    1.0,
+
+    0.0, 1.0, 0.0, 1.0,
+
+    0.0, 0.0, 0.0, 1.0,
+  ])
+  uniformData2.set(viewProjMat)
+
+  let uniformBuffer2: GPUBuffer = createBuffer(
+    device,
+    uniformData2,
     GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
   )
 
@@ -189,7 +312,7 @@ export async function init() {
             type: 'uniform',
             hasDynamicOffset: false,
             minBindingSize: 0,
-          }
+          },
         },
       ],
     }
@@ -202,6 +325,18 @@ export async function init() {
         binding: 0,
         resource: {
           buffer: uniformBuffer,
+        },
+      },
+    ],
+  })  
+
+  let uniformBindGroup2: GPUBindGroup = device.createBindGroup({
+    layout: uniformBindGroupLayout,
+    entries: [
+      {
+        binding: 0,
+        resource: {
+          buffer: uniformBuffer2,
         },
       },
     ],
@@ -288,8 +423,20 @@ export async function init() {
 
   let pipeline: GPURenderPipeline = device.createRenderPipeline(pipelineDesc)
 
+  let start = 0
+  let z = 3
   // command encoder
-  const render = () => {
+  const render = (time) => {
+    if (start === 0) start = time
+    const elapsed = time - start
+    if (elapsed > 100) {
+      z+=0.1
+      const viewProjMat = buildViewProjectionMatrix(vec3.fromValues(0, 1, z))
+      uniformData.set(viewProjMat)
+      queue.writeBuffer(uniformBuffer, 0, uniformData)
+      start = 0;
+    }
+
     encodeCommands(
       device,
       queue,
@@ -298,7 +445,7 @@ export async function init() {
       pipeline,
       canvas.width,
       canvas.height,
-      uniformBindGroup,
+      [uniformBindGroup, uniformBindGroup2],
       positionBuffer,
       colorBuffer,
       indexBuffer
@@ -307,8 +454,7 @@ export async function init() {
     requestAnimationFrame(render)
   }
 
-  render()
-
+  requestAnimationFrame(render)
 
   // device.destroy()
 }

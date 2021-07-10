@@ -14,7 +14,7 @@ layout (location = 0) out vec3 outColor;
 
 void main()
 {
-    outColor = inColor;
-    //outColor = vec3(primaryColor.r, primaryColor.g, primaryColor.b);
+    //outColor = inColor;
+    outColor = vec3(primaryColor.r, primaryColor.g, primaryColor.b);
     gl_Position = modelViewProj * vec4(inPos, 1.0);
 }
