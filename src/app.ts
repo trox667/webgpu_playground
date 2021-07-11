@@ -1,8 +1,37 @@
 import { mat4, glMatrix, vec3 } from 'gl-matrix'
 import { getModel } from './model'
-import { buildViewProjectionMatrix } from './camera'
+import {
+  buildProjectionMatrix,
+  buildViewProjectionMatrix,
+  OrbitCamera,
+} from './camera'
 import { createBuffer, loadShader } from './util'
 import { createShader } from './shader'
+
+let lastMousePos: vec3 = vec3.create()
+let mousePos: vec3 = vec3.create()
+let isLeftMousePressed = false
+
+window.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    isLeftMousePressed = true
+    lastMousePos = vec3.fromValues(e.clientX, e.clientY, 0.0)
+  }
+})
+
+window.addEventListener('mousemove', (e) => {
+  if (isLeftMousePressed) {
+    mousePos = vec3.fromValues(e.clientX, e.clientY, 0.0)
+  }
+})
+
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 0) {
+    isLeftMousePressed = false
+    lastMousePos = vec3.fromValues(0.0, 0.0, 0.0)
+    mousePos = vec3.fromValues(0.0, 0.0, 0.0)
+  }
+})
 
 function createSwapChain(
   context: GPUCanvasContext,
@@ -110,18 +139,18 @@ function encodeCommands(
   passEncoder.setPipeline(pipeline)
   passEncoder.setBindGroup(0, bindGroups[0])
   passEncoder.setViewport(0, 0, width, height, 0, 1)
-  passEncoder.setScissorRect(0, 0, width / 2, height)
+  passEncoder.setScissorRect(0, 0, width, height)
   passEncoder.setVertexBuffer(0, positionBuffer)
   passEncoder.setVertexBuffer(1, colorBuffer)
   passEncoder.setIndexBuffer(indexBuffer, 'uint16')
   passEncoder.drawIndexed(36, 1, 0, 0, 0)
-  passEncoder.setBindGroup(0, bindGroups[1])
-  passEncoder.setViewport(0, 0, width, height, 0, 1)
-  passEncoder.setScissorRect(width / 2, 0, width / 2, height)
-  passEncoder.setVertexBuffer(0, positionBuffer)
-  passEncoder.setVertexBuffer(1, colorBuffer)
-  passEncoder.setIndexBuffer(indexBuffer, 'uint16')
-  passEncoder.drawIndexed(36, 1, 0, 0, 0)
+  // passEncoder.setBindGroup(0, bindGroups[1])
+  // passEncoder.setViewport(0, 0, width, height, 0, 1)
+  // passEncoder.setScissorRect(width / 2, 0, width / 2, height)
+  // passEncoder.setVertexBuffer(0, positionBuffer)
+  // passEncoder.setVertexBuffer(1, colorBuffer)
+  // passEncoder.setIndexBuffer(indexBuffer, 'uint16')
+  // passEncoder.drawIndexed(36, 1, 0, 0, 0)
   passEncoder.endPass()
 
   queue.submit([commandEncoder.finish()])
@@ -168,7 +197,8 @@ export async function init() {
 
     0.0, 0.0, 0.0, 1.0,
   ])
-  const viewProjMat = buildViewProjectionMatrix()
+  let camera = new OrbitCamera()
+  const viewProjMat = buildProjectionMatrix(camera.view())
   uniformData.set(viewProjMat)
 
   let uniformBuffer: GPUBuffer = createBuffer(
@@ -196,8 +226,16 @@ export async function init() {
 
   let uniformBindGroupLayout = createBindGroupLayout(device)
 
-  let uniformBindGroup = createBindGroup(device, uniformBindGroupLayout, uniformBuffer)
-  let uniformBindGroup2 = createBindGroup(device, uniformBindGroupLayout, uniformBuffer2)
+  let uniformBindGroup = createBindGroup(
+    device,
+    uniformBindGroupLayout,
+    uniformBuffer
+  )
+  let uniformBindGroup2 = createBindGroup(
+    device,
+    uniformBindGroupLayout,
+    uniformBuffer2
+  )
 
   let layout: GPUPipelineLayout = device.createPipelineLayout({
     bindGroupLayouts: [uniformBindGroupLayout],
@@ -205,18 +243,37 @@ export async function init() {
 
   const pipeline = await createRenderPipeline(device, layout)
 
-  let start = 0
-  let z = 3
+  let startTime = 0
   // command encoder
   const render = (time) => {
-    if (start === 0) start = time
-    const elapsed = time - start
+    if (startTime === 0) startTime = time
+    const elapsed = time - startTime
+    // tick
     if (elapsed > 100) {
-      z += 0.1
-      const viewProjMat = buildViewProjectionMatrix(vec3.fromValues(0, 1, z))
-      uniformData.set(viewProjMat)
-      queue.writeBuffer(uniformBuffer, 0, uniformData)
-      start = 0
+      console.log(isLeftMousePressed)
+      if (isLeftMousePressed) {
+        const x = vec3.fromValues(
+          mousePos[0] / canvas.width - 0.5,
+          mousePos[1] / canvas.height - 0.5,
+          0.0
+        )
+        const y = vec3.fromValues(
+          lastMousePos[0] / canvas.width - 0.5,
+          lastMousePos[1] / canvas.height - 0.5,
+          0.0
+        )
+        camera.rotate(x, y)
+        const viewProjMat = buildProjectionMatrix(camera.view())
+        uniformData.set(viewProjMat)
+        queue.writeBuffer(uniformBuffer, 0, uniformData)
+        // vec3.copy(lastMousePos, mousePos)
+
+        console.log('last mouse pos', lastMousePos)
+        console.log('curr mouse pos', mousePos)
+      }
+      // uniformData.set(viewProjMat)
+      // queue.writeBuffer(uniformBuffer, 0, uniformData)
+      startTime = 0
     }
 
     encodeCommands(
